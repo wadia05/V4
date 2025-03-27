@@ -199,11 +199,11 @@ void setReqType(Connection *conn, HTTPRequest request)
 {
     if (conn->method == NOTDETECTED)
     {
-        if(request.getMethod() == "GET")
+        if(request.getMethod() == "GET" && conn->status_code == 200)
             conn->method= GET;
-        else if(request.getMethod() == "POST")
+        else if(request.getMethod() == "POST" && conn->status_code == 200)
             conn->method = POST;
-        else if(request.getMethod() == "DELETE")
+        else if(request.getMethod() == "DELETE" && conn->status_code == 200)
             conn->method = DELETE;
     }
 }
@@ -213,15 +213,44 @@ void Server::parseReaquest(Connection *conn)
     HTTPRequest request;
     if (!request.parse_request(conn->read_buffer, this->configs[this->inx]))
     {
-        std::cerr << "Failed to parse request" << std::endl;
-        conn->path = this->error_page;
-        conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
-        if (!conn->readFormFile->is_open())
+        print_message("Error parsing request", RED);
+        conn->status_code = request.getStatusCode();
+        // conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
+        // if (!conn->readFormFile->is_open())
+        // {
+        //     std::cerr << "Failed to open error file" << std::endl;
+        //     return;
+        // }
+        // return ;
+    }
+    else
+    {
+        CGI cgi;
+        int i = 0;
+        bool is_upload = cgi.upload(request, this->configs[this->inx]);
+        if (!is_upload && cgi.getStatus() != 200)
         {
-            std::cerr << "Failed to open error file" << std::endl;
+            conn->status_code = cgi.getStatus();
             return;
         }
-        // return ;
+        else if (is_upload)
+            i = 1;
+        if (cgi.is_cgi(request.getPath(), this->configs[this->inx], request.getInLocation()) && i == 0)
+        {
+            if (!cgi.exec_cgi(request, conn->response))
+            conn->status_code  = cgi.getStatus();
+        }
+        // else
+        // {
+        //     std::string file_content = read_file(std::string(request.getPath()));
+        //     if (file_content.empty())
+        //     {
+        //         print_message("Error reading file", RED);
+        //         conn->status_code  = 404;
+        //     }
+        //     else
+        //     conn->response = file_content;
+        // }
     }
     conn->read_buffer.clear();
     setReqType(conn, request);
@@ -248,6 +277,11 @@ void Server::possess_request(Connection* conn, HTTPRequest &request)
     {
         std::cout << "DELETE request" << std::endl;
         this->DELETE_hander(conn, request);
+    }
+    else
+    {
+        std::cout << conn->status_code << std::endl;
+        print_message("Unknown request", RED);
     }
     conn->is_possessing = false;
     conn->is_writing = true;
@@ -281,7 +315,7 @@ void resetClient(Connection* conn)
     conn->is_writing = false;
     conn->is_closing = false;
     conn->is_possessing = false;
-
+    conn->is_cgi = false;
     // Reset file stream
     if (conn->readFormFile) {
         delete conn->readFormFile;
@@ -293,15 +327,22 @@ void resetClient(Connection* conn)
 
 void Server::send_response(Connection* conn) {
     // First time sending: prepare header
+    
+    if (!conn->response.empty())
+    {
+        conn->is_cgi = true;
+        print_message("is cgiiiiiiiiiiiiiiiiiiii", GREEN);
+
+    }
     if (!conn->headersSend) {
         conn->write_buffer = conn->GetHeaderResponse(conn->status_code);
-        std::cout << conn->write_buffer << std::endl;
+        // std::cout << conn->write_buffer << std::endl;
         conn->headersSend = true;
         conn->total_sent = 0;
     }
 
     // If we haven't opened the file yet, open it
-    if (!conn->readFormFile->is_open()) {
+    if (!conn->readFormFile->is_open() && !conn->is_cgi) {
         std::cerr << "No file to send" << std::endl;
         close_connection(conn);
         return;
@@ -309,17 +350,20 @@ void Server::send_response(Connection* conn) {
 
     // Prepare to send body in chunks
     char buffer[BUFFER_SIZE];
-    conn->readFormFile->read(buffer, BUFFER_SIZE);
-    std::streamsize bytes_read = conn->readFormFile->gcount();
-    conn->write_buffer.append(buffer, bytes_read);
+    std::streamsize bytes_read = 0;
+    if (!conn->is_cgi)
+    {
+        conn->readFormFile->read(buffer, BUFFER_SIZE);
+        bytes_read = conn->readFormFile->gcount();
+        conn->write_buffer.append(buffer, bytes_read);
+    }
 
-
-    if (bytes_read > 0) {
-        if (conn->fd == 0)
+    if (bytes_read > 0 || conn->is_cgi) {
+        if (conn->is_cgi)
         {
-            std::cout << "no send socket available" << std::endl;
-            return;
+            conn->write_buffer.append(conn->response.c_str(), conn->response.size()); 
         }
+        // std::cout << "Sending: " << conn->write_buffer << std::endl;
         ssize_t sent = send(conn->fd, conn->write_buffer.c_str(), conn->write_buffer.size(), MSG_NOSIGNAL);
         conn->write_buffer.clear();
         conn->total_sent += sent;
@@ -330,8 +374,16 @@ void Server::send_response(Connection* conn) {
             return;
         }
 
+        if(conn->is_cgi)
+        {
+            std::cout << GREEN << "File completely sent" << RESET << std::endl;
+            conn->readFormFile->close();
+            conn->is_writing = false;
+            resetClient(conn);
+            mod_epoll(conn->fd, EPOLLIN);
+        }
         // If not all bytes were sent, handle partial send
-        if (sent < bytes_read) {
+        if (sent < bytes_read && !conn->is_cgi) {
             // You might want to keep track of partially sent data
             conn->write_buffer.append(buffer + sent, bytes_read - sent);
             mod_epoll(conn->fd, EPOLLOUT);
@@ -407,6 +459,11 @@ int Server::GET_hander(Connection *conn, HTTPRequest &request)
 
 int Server::POST_hander(Connection *conn)
 {
+    if (!conn->response.empty())
+    {
+        conn->status_code = 200;
+        return 0;
+    }
     conn->path = "www/suss/postsuss.html";
     std::cout << RED << "Path: " << conn->path << RESET <<std::endl;
     conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);

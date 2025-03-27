@@ -26,22 +26,25 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 #include <sys/epoll.h>
 #include "MimeTypes/MimeTypes.hpp"
 #include "Config/Tokenizer.hpp"
 #include "Config/Config.hpp"
 #include "req/HTTPRequest.hpp"
+#include "CGI/CGI.hpp"
 
 class MimeTypes;
 class Tokenizer;
 class Config;
 class HTTPRequest;
+class CGI;
 
-//server part
+// server part
 
 #define MAX_EVENTS 64
 #define BUFFER_SIZE 4096
-#define KEEP_ALIVE_TIMEOUT 15 // 15 seconds
+#define KEEP_ALIVE_TIMEOUT 15     // 15 seconds
 #define MAX_UPLOAD_SIZE 100000000 // 100MB
 
 #include "server.hpp"

@@ -28,6 +28,7 @@ public:
 
     std::string read_buffer;
     std::string write_buffer;
+    std::string response;
     std::string path;
     std::ifstream *readFormFile;
     std::string query;
@@ -46,7 +47,7 @@ public:
     bool is_closing;
     // bool is_parsing;
     bool is_possessing;
-
+    bool is_cgi;
     // const HTTPRequest &request; // This requires the full definition of HTTPRequest
 
     Connection(int fd);

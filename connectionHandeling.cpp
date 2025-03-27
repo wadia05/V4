@@ -1,8 +1,8 @@
 #include "connectionHandeling.hpp"
 
-Connection::Connection(int fd) : fd(fd), status_code(0), read_buffer(""), write_buffer(""), path(""), readFormFile(NULL), query(""), upload_path(""), method(NOTDETECTED),
+Connection::Connection(int fd) : fd(fd), status_code(200), read_buffer(""),write_buffer(""), response(""), path(""), readFormFile(NULL), query(""), upload_path(""), method(NOTDETECTED),
                                                        last_active(time(NULL)), content_length(0), total_sent(0), keep_alive(true), headersSend(false), chunked(false),
-                                                       is_reading(false), is_writing(false), is_closing(false),  is_possessing(false)
+                                                       is_reading(false), is_writing(false), is_closing(false),  is_possessing(false) , is_cgi(false)
 {
     readFormFile = new std::ifstream(); // Initialize the pointer
     std::cout << GREEN << this->content_length << RESET << std::endl;
@@ -32,6 +32,8 @@ std::string Connection::GetHeaderResponse(int status_code)
     
     // Set content type based on extension
     if (extension == "html" || extension == "htm") {
+        contentType = "text/html";
+    } else if (this->is_cgi) {
         contentType = "text/html";
     } else if (extension == "css") {
         contentType = "text/css";
@@ -70,7 +72,7 @@ std::string Connection::GetHeaderResponse(int status_code)
     std::stringstream ss;
     ss << "HTTP/1.1 " << status_code << " " << GetStatusMessage(status_code) << "\r\n";
     ss << "Content-Type: " << contentType << "\r\n";
-    ss << "Content-Length: " << this->content_length << "\r\n";
+    ss << "Content-Length: " << (this->is_cgi ? this->response.size() : this->content_length) << "\r\n";
     ss << "Server: MoleServer\r\n";
     ss << "Connection: " << (this->keep_alive ? "keep-alive" : "close") << "\r\n";
     ss << "\r\n"; // Empty line to separate headers from body

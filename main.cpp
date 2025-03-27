@@ -10,7 +10,7 @@ int main(int ac, char** av) {
 
     if (ac != 2)
         return (print_message("Usage: ./webserv <config_file>", RED), 1);
-    MimeTypes mimeTypes("mimeTypes.csv");
+    MimeTypes mimeTypes("www/mimeTypes.csv");
     std::ifstream file(av[1]);
     Config config;
     config.parseConfig(file);

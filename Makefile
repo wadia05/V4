@@ -2,15 +2,16 @@
 
 # Compiler and flags
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g -fsanitize=address
+CXXFLAGS = -Wall -Wextra -Werror #-std=c++98 -g -fsanitize=address
 
-Header = webserv.hpp MimeTypes/MimeTypes.hpp Config/Tokenizer.hpp Config/Config.hpp req/HTTPRequest.hpp
+Header = main.hpp MimeTypes/MimeTypes.hpp Config/Tokenizer.hpp Config/Config.hpp req/HTTPRequest.hpp
 # Source files and target
 SRCS = main.cpp server.cpp connectionHandeling.cpp\
 		MimeTypes/MimeTypes.cpp \
 		Config/Tokenizer.cpp Config/utils.cpp \
 		Config/Config.cpp Config/error.cpp Config/get.cpp Config/set.cpp \
-		req/HTTPRequest.cpp req/parseBody.cpp req/parseHeaders.cpp req/parseRequestLine.cpp req/get.cpp
+		req/HTTPRequest.cpp req/parseBody.cpp req/parseHeaders.cpp req/parseRequestLine.cpp req/get.cpp \
+		CGI/upload.cpp CGI/CGI.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 TARGET = webserver
