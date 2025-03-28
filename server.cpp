@@ -1,7 +1,8 @@
 #include "server.hpp"
 
-Server::Server(const Config &config) : current_fd_index(0){
-    
+Server::Server(const Config &config) : current_fd_index(0)
+{
+
     this->inx = 0;
     this->configs = config.getConfigs();
     this->serverIp = this->configs[this->inx].getHost()[0];
@@ -11,27 +12,27 @@ Server::Server(const Config &config) : current_fd_index(0){
     this->root = "www";
     this->index_page = "www/index.html";
     this->error_page = "www/error_pages/404.html";
-    
-
 
     // int epoll_create(int size);
     this->epoll_fd = epoll_create(1);
-    if (this->epoll_fd < 0) {
+    if (this->epoll_fd < 0)
+    {
         throw std::runtime_error("Failed to create epoll");
     }
 
     // Create server socket
     this->server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (this->server_fd < 0) {
+    if (this->server_fd < 0)
+    {
         throw std::runtime_error("Failed to create socket");
     }
 
     // Set socket options
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+    {
         throw std::runtime_error("Failed to set SO_REUSEADDR");
     }
-
 
     // Bind and listen
     struct sockaddr_in addr;
@@ -39,43 +40,53 @@ Server::Server(const Config &config) : current_fd_index(0){
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr(this->serverIp.c_str());
     addr.sin_port = htons(this->port);
-    
-    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+
+    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         throw std::runtime_error("Failed to bind socket");
     }
-    
-    if (listen(server_fd, SOMAXCONN) < 0) {
+
+    if (listen(server_fd, SOMAXCONN) < 0)
+    {
         throw std::runtime_error("Failed to listen");
     }
     set_non_blocking(server_fd);
     // Add server socket to epoll
     add_to_epoll(server_fd, EPOLLIN);
 }
-Server::~Server() {
+Server::~Server()
+{
     // Cleanup connections
-    for (std::map<int, Connection*>::iterator it = connections.begin(); it != connections.end(); ) {
-        close_connection(it->second);  // This erases from map and deletes
-        it = connections.begin();  // Reset iterator after erase
+    for (std::map<int, Connection *>::iterator it = connections.begin(); it != connections.end();)
+    {
+        close_connection(it->second); // This erases from map and deletes
+        it = connections.begin();     // Reset iterator after erase
     }
     close(server_fd);
     close(epoll_fd);
 }
 
-
-void Server::run() {
+void Server::run()
+{
     struct epoll_event events[MAX_EVENTS];
-    
-    while (true) {
+
+    while (true)
+    {
         int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
-        
-        for (int i = 0; i < num_events; i++) {
+
+        for (int i = 0; i < num_events; i++)
+        {
             int current_fd = events[i].data.fd;
-            
-            if (current_fd == server_fd) {
+
+            if (current_fd == server_fd)
+            {
                 handle_connection(current_fd);
-            } else {
-                std::map<int, Connection*>::iterator it = connections.find(current_fd);
-                if (it != connections.end()) {
+            }
+            else
+            {
+                std::map<int, Connection *>::iterator it = connections.find(current_fd);
+                if (it != connections.end())
+                {
                     handle_request(it->second);
                 }
             }
@@ -85,51 +96,61 @@ void Server::run() {
         time_t current_time = time(0);
         // std::cout << "Current time: " << current_time << std::endl;
         std::vector<int> expired_fds;
-        for (std::map<int, Connection*>::const_iterator it = connections.begin(); it != connections.end(); ++it) {
+        for (std::map<int, Connection *>::const_iterator it = connections.begin(); it != connections.end(); ++it)
+        {
             std::cout << "Checking connection: " << it->first << " with last active: " << it->second->last_active << std::endl;
-            if (current_time - it->second->last_active > KEEP_ALIVE_TIMEOUT) {
+            if (current_time - it->second->last_active > KEEP_ALIVE_TIMEOUT)
+            {
                 expired_fds.push_back(it->first);
             }
         }
-        
-        for (size_t i = 0; i < expired_fds.size(); ++i) {
-            std::map<int, Connection*>::iterator it = connections.find(expired_fds[i]);
-            if (it != connections.end()) {
+
+        for (size_t i = 0; i < expired_fds.size(); ++i)
+        {
+            std::map<int, Connection *>::iterator it = connections.find(expired_fds[i]);
+            if (it != connections.end())
+            {
                 // std::cout << "from timeout : " << it->first << std::endl;
                 close_connection(it->second);
             }
         }
     }
 }
-void Server::set_non_blocking(int fd){
+void Server::set_non_blocking(int fd)
+{
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-void Server::mod_epoll(int fd, uint32_t events) {
+void Server::mod_epoll(int fd, uint32_t events)
+{
     struct epoll_event ev;
     ev.events = events;
     ev.data.fd = fd;
     epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev);
 }
 
-void Server::add_to_epoll(int fd, uint32_t events){
+void Server::add_to_epoll(int fd, uint32_t events)
+{
     epoll_event ev;
     ev.data.fd = fd;
     ev.events = events;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev);
 }
 
-void Server::remove_from_epoll(int fd){
+void Server::remove_from_epoll(int fd)
+{
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
 }
 
-void Server::handle_connection(int fd){
+void Server::handle_connection(int fd)
+{
     // handle the connection
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
-    int client_fd = accept(fd, (struct sockaddr*)&client_addr, &client_len);
-    if (client_fd < 0) {
+    int client_fd = accept(fd, (struct sockaddr *)&client_addr, &client_len);
+    if (client_fd < 0)
+    {
         throw std::runtime_error("Failed to accept connection");
     }
     set_non_blocking(client_fd);
@@ -140,25 +161,26 @@ void Server::handle_connection(int fd){
     std::cout << "New connection accepted" << std::endl;
 }
 
-void Server::handle_request(Connection* conn){
+void Server::handle_request(Connection *conn)
+{
     // HTTPRequest request;
-    if(conn->is_reading)
+    if (conn->is_reading)
         read_request(conn);
-    else if(conn->is_possessing)
+    else if (conn->is_possessing)
     {
         parseReaquest(conn);
         conn->last_active = time(0);
         // possess_request(conn);
         std::cout << "Parsing the request" << std::endl;
     }
-    else if(conn->is_writing)
+    else if (conn->is_writing)
     {
-        std::cout << MAGENTA << "Sending the response" << RESET  << std::endl;
+        std::cout << MAGENTA << "Sending the response" << RESET << std::endl;
         conn->last_active = time(0);
         send_response(conn);
         // if (conn->is_reading == true)
         //     mod_epoll(conn->fd, EPOLLIN);
-            // restCient(conn);
+        // restCient(conn);
     }
     // std::cout << "Last active: " << conn->last_active << std::endl;
 }
@@ -199,11 +221,11 @@ void setReqType(Connection *conn, HTTPRequest request)
 {
     if (conn->method == NOTDETECTED)
     {
-        if(request.getMethod() == "GET" && conn->status_code == 200)
-            conn->method= GET;
-        else if(request.getMethod() == "POST" && conn->status_code == 200)
+        if (request.getMethod() == "GET" && conn->status_code == 200)
+            conn->method = GET;
+        else if (request.getMethod() == "POST" && conn->status_code == 200)
             conn->method = POST;
-        else if(request.getMethod() == "DELETE" && conn->status_code == 200)
+        else if (request.getMethod() == "DELETE" && conn->status_code == 200)
             conn->method = DELETE;
     }
 }
@@ -214,7 +236,9 @@ void Server::parseReaquest(Connection *conn)
     if (!request.parse_request(conn->read_buffer, this->configs[this->inx]))
     {
         print_message("Error parsing request", RED);
+        conn->path = "";
         conn->status_code = request.getStatusCode();
+        // conn->GetStateFilePath();
         // conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
         // if (!conn->readFormFile->is_open())
         // {
@@ -238,7 +262,7 @@ void Server::parseReaquest(Connection *conn)
         if (cgi.is_cgi(request.getPath(), this->configs[this->inx], request.getInLocation()) && i == 0)
         {
             if (!cgi.exec_cgi(request, conn->response))
-            conn->status_code  = cgi.getStatus();
+                conn->status_code = cgi.getStatus();
         }
         // else
         // {
@@ -254,13 +278,13 @@ void Server::parseReaquest(Connection *conn)
     }
     conn->read_buffer.clear();
     setReqType(conn, request);
-    possess_request(conn , request);
+    possess_request(conn, request);
     // request.print_all();
     conn->last_active = time(0);
     conn->is_possessing = false;
     conn->is_writing = true;
 }
-void Server::possess_request(Connection* conn, HTTPRequest &request)
+void Server::possess_request(Connection *conn, HTTPRequest &request)
 {
     // HTTPRequest request = HTTPRequest(conn->read_buffer);
     if (conn->method == GET)
@@ -268,7 +292,7 @@ void Server::possess_request(Connection* conn, HTTPRequest &request)
         std::cout << "GET request" << std::endl;
         this->GET_hander(conn, request);
     }
-    else if(conn->method == POST)
+    else if (conn->method == POST)
     {
         std::cout << "POST request" << std::endl;
         this->POST_hander(conn);
@@ -283,13 +307,15 @@ void Server::possess_request(Connection* conn, HTTPRequest &request)
         std::cout << conn->status_code << std::endl;
         print_message("Unknown request", RED);
     }
+    conn->GetStateFilePath();
     conn->is_possessing = false;
     conn->is_writing = true;
 }
-void resetClient(Connection* conn)
+void resetClient(Connection *conn)
 {
     // Safely close the file if it's open
-    if (conn->readFormFile && conn->readFormFile->is_open()) {
+    if (conn->readFormFile && conn->readFormFile->is_open())
+    {
         conn->readFormFile->close();
     }
 
@@ -302,10 +328,10 @@ void resetClient(Connection* conn)
 
     // Reset state variables
     conn->method = NOTDETECTED;
-    conn->last_active = time(0);  // Set to current time instead of 0
+    conn->last_active = time(0); // Set to current time instead of 0
     conn->content_length = 0;
     conn->total_sent = 0;
-    conn->status_code = 0;
+    conn->status_code = 200;
 
     // Reset connection flags
     conn->keep_alive = true;
@@ -317,7 +343,8 @@ void resetClient(Connection* conn)
     conn->is_possessing = false;
     conn->is_cgi = false;
     // Reset file stream
-    if (conn->readFormFile) {
+    if (conn->readFormFile)
+    {
         delete conn->readFormFile;
     }
     conn->readFormFile = new std::ifstream();
@@ -325,24 +352,24 @@ void resetClient(Connection* conn)
     std::cout << GREEN "Client connection reset" RESET << std::endl;
 }
 
-void Server::send_response(Connection* conn) {
+void Server::send_response(Connection *conn)
+{
     // First time sending: prepare header
-    
     if (!conn->response.empty())
     {
         conn->is_cgi = true;
         print_message("is cgiiiiiiiiiiiiiiiiiiii", GREEN);
-
     }
-    if (!conn->headersSend) {
-        conn->write_buffer = conn->GetHeaderResponse(conn->status_code);
-        // std::cout << conn->write_buffer << std::endl;
+    if (!conn->headersSend)
+    {
+        conn->write_buffer = conn->GetHeaderResponse();
         conn->headersSend = true;
-        conn->total_sent = 0;
+        conn->total_sent = 0; // Reset total_sent when starting a new response
     }
 
     // If we haven't opened the file yet, open it
-    if (!conn->readFormFile->is_open() && !conn->is_cgi) {
+    if (!conn->readFormFile->is_open() && !conn->is_cgi)
+    {
         std::cerr << "No file to send" << std::endl;
         close_connection(conn);
         return;
@@ -358,23 +385,26 @@ void Server::send_response(Connection* conn) {
         conn->write_buffer.append(buffer, bytes_read);
     }
 
-    if (bytes_read > 0 || conn->is_cgi) {
+    if (bytes_read > 0 || conn->is_cgi)
+    {
         if (conn->is_cgi)
         {
-            conn->write_buffer.append(conn->response.c_str(), conn->response.size()); 
+            conn->write_buffer.append(conn->response.c_str(), conn->response.size());
         }
-        // std::cout << "Sending: " << conn->write_buffer << std::endl;
+
         ssize_t sent = send(conn->fd, conn->write_buffer.c_str(), conn->write_buffer.size(), MSG_NOSIGNAL);
-        conn->write_buffer.clear();
-        conn->total_sent += sent;
-        std::cout << "Total sent: " << conn->total_sent  << " / " << conn->content_length << std::endl;
-        if (sent < 0) {
-           
+        if (sent < 0)
+        {
             close_connection(conn);
             return;
         }
 
-        if(conn->is_cgi)
+        conn->write_buffer.erase(0, sent); // Remove sent data from the buffer
+        conn->total_sent += sent;
+
+        std::cout << "Total sent: " << conn->total_sent << " / " << conn->content_length << std::endl;
+
+        if (conn->is_cgi)
         {
             std::cout << GREEN << "File completely sent" << RESET << std::endl;
             conn->readFormFile->close();
@@ -382,17 +412,18 @@ void Server::send_response(Connection* conn) {
             resetClient(conn);
             mod_epoll(conn->fd, EPOLLIN);
         }
+
         // If not all bytes were sent, handle partial send
-        if (sent < bytes_read && !conn->is_cgi) {
-            // You might want to keep track of partially sent data
-            conn->write_buffer.append(buffer + sent, bytes_read - sent);
+        if (sent < bytes_read && !conn->is_cgi)
+        {
             mod_epoll(conn->fd, EPOLLOUT);
             return;
         }
     }
 
     // Check if we've reached the end of the file
-    if (conn->readFormFile->eof()) {
+    if (conn->readFormFile->eof())
+    {
         std::cout << GREEN << "File completely sent" << RESET << std::endl;
         conn->readFormFile->close();
         conn->is_writing = false;
@@ -400,12 +431,15 @@ void Server::send_response(Connection* conn) {
         mod_epoll(conn->fd, EPOLLIN);
     }
 }
-void Server::close_connection(Connection* conn) {
-    if (!conn) return;
+
+void Server::close_connection(Connection *conn)
+{
+    if (!conn)
+        return;
     resetClient(conn);
     int fd = conn->fd;
     std::cout << "Closing connection: " << fd << std::endl;
-// Remove from monitoring first
+    // Remove from monitoring first
     remove_from_epoll(fd);
 
     // this->ready_fds.erase(std::remove(this->ready_fds.begin(), this->ready_fds.end(), fd), this->ready_fds.end());
@@ -417,45 +451,24 @@ void Server::close_connection(Connection* conn) {
 
     // Delete connection object
     delete conn;
-        // Remove from monitoring first
+    // Remove from monitoring first
 }
-
-
-
 
 // << =================== Methods for Server =================== >> //
 
-
 int Server::GET_hander(Connection *conn, HTTPRequest &request)
 {
-   if (request.getPath() == "/favicon.ico")
-   {
-     conn->path = this->root + request.getPath();
-   }
+    if (request.getPath() == "/favicon.ico")
+    {
+        conn->path = this->root + request.getPath();
+    }
     else
         conn->path = request.getPath();
+    // conn->GetStateFilePath();
+    // conn->status_code = 200;
 
-    std::cout << RED << "Path: " << conn->path << RESET <<std::endl;
-    conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
-    if (!conn->readFormFile->is_open())
-    {
-        std::cerr << "Failed to open file" << std::endl;
-        conn->path = this->error_page;
-        conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
-        if (!conn->readFormFile->is_open())
-        {
-            std::cerr << "Failed to open error file" << std::endl;
-            return 0;
-        }
-        return 1;
-    }
-    conn->readFormFile->seekg(0, std::ios::end);
-    conn->content_length = conn->readFormFile->tellg();
-    conn->readFormFile->seekg(0, std::ios::beg);
-    conn->status_code = 200;
     return 0;
 }
-
 
 int Server::POST_hander(Connection *conn)
 {
@@ -464,65 +477,44 @@ int Server::POST_hander(Connection *conn)
         conn->status_code = 200;
         return 0;
     }
-    conn->path = "www/suss/postsuss.html";
-    std::cout << RED << "Path: " << conn->path << RESET <<std::endl;
-    conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
-    if (!conn->readFormFile->is_open())
-    {
-        std::cerr << "Failed to open file" << std::endl;
-        conn->path = this->error_page;
-        conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
-        if (!conn->readFormFile->is_open())
-        {
-            std::cerr << "Failed to open error file" << std::endl;
-            return 0;
-        }
-        return 1;
-    }
-    conn->readFormFile->seekg(0, std::ios::end);
-    conn->content_length = conn->readFormFile->tellg();
-    conn->readFormFile->seekg(0, std::ios::beg);
     conn->status_code = 201;
+    // conn->GetStateFilePath();
     return 0;
 }
 void deleteFile(std::string path)
 {
     // Check if file exists before attempting to delete
-    if (access(path.c_str(), F_OK) != 0) {
+    if (access(path.c_str(), F_OK) != 0)
+    {
         std::cerr << "File does not exist: " << path << std::endl;
         return;
     }
-    
+
     // Check if we have write permission to delete the file
-    if (access(path.c_str(), W_OK) != 0) {
+    if (access(path.c_str(), W_OK) != 0)
+    {
         std::cerr << "No permission to delete file: " << path << std::endl;
         std::cerr << "Error: " << strerror(errno) << std::endl;
         return;
     }
-    
+
     // Attempt to delete the file
-    if (remove(path.c_str()) != 0) {
+    if (remove(path.c_str()) != 0)
+    {
         std::cerr << "Error deleting file: " << path << std::endl;
         std::cerr << "Error: " << strerror(errno) << std::endl;
-    } else {
+    }
+    else
+    {
         std::cout << "File successfully deleted: " << path << std::endl;
     }
 }
 
 int Server::DELETE_hander(Connection *conn, HTTPRequest &request)
 {
-    std::cout << request.getPath() << std::endl;
-    deleteFile(request.getPath());
-    conn->path = "www/suss/deletesuss.html";
-    std::cout << RED << "Path: " << conn->path << RESET <<std::endl;
-    conn->readFormFile->open(conn->path.c_str(), std::ios::in | std::ios::binary);
-    if (!conn->readFormFile->is_open())
-    {
-        std::cerr << "Failed to open file" << std::endl;
-    }
-    conn->readFormFile->seekg(0, std::ios::end);
-    conn->content_length = conn->readFormFile->tellg();
-    conn->readFormFile->seekg(0, std::ios::beg);
+
     conn->status_code = 204;
+    deleteFile(request.getPath());
+    // conn->GetStateFilePath();
     return 0;
 }

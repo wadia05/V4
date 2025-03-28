@@ -53,9 +53,10 @@ public:
     Connection(int fd);
     ~Connection();
 
-    std::string GetHeaderResponse(int status_code);
+    std::string GetHeaderResponse();
     std::string GetContentType();
-    std::string GetStatusMessage(int status_code);
+    std::string GetStatusMessage();
+    void GetStateFilePath();
     void GetBodyResponse();
  
 };

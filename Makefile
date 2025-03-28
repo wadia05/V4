@@ -2,7 +2,8 @@
 
 # Compiler and flags
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror #-std=c++98 -g -fsanitize=address
+# CXXFLAGS = -Wall -Wextra -Werror #-std=c++98 -g -fsanitize=address
+CXXFLAGS = -Wall -Wextra -Werror -g -fsanitize=address
 
 Header = main.hpp MimeTypes/MimeTypes.hpp Config/Tokenizer.hpp Config/Config.hpp req/HTTPRequest.hpp
 # Source files and target

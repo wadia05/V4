@@ -1,8 +1,8 @@
 #include "connectionHandeling.hpp"
 
-Connection::Connection(int fd) : fd(fd), status_code(200), read_buffer(""),write_buffer(""), response(""), path(""), readFormFile(NULL), query(""), upload_path(""), method(NOTDETECTED),
-                                                       last_active(time(NULL)), content_length(0), total_sent(0), keep_alive(true), headersSend(false), chunked(false),
-                                                       is_reading(false), is_writing(false), is_closing(false),  is_possessing(false) , is_cgi(false)
+Connection::Connection(int fd) : fd(fd), status_code(200), read_buffer(""), write_buffer(""), response(""), path(""), readFormFile(NULL), query(""), upload_path(""), method(NOTDETECTED),
+                                 last_active(time(NULL)), content_length(0), total_sent(0), keep_alive(true), headersSend(false), chunked(false),
+                                 is_reading(false), is_writing(false), is_closing(false), is_possessing(false), is_cgi(false)
 {
     readFormFile = new std::ifstream(); // Initialize the pointer
     std::cout << GREEN << this->content_length << RESET << std::endl;
@@ -18,65 +18,101 @@ Connection::~Connection()
         delete readFormFile;
     }
 }
-std::string Connection::GetHeaderResponse(int status_code)
+std::string Connection::GetHeaderResponse()
 {
     // (void)status_code;
     std::string contentType;
-    
+
     // Determine content type based on file extension
     std::string extension;
     size_t dotPos = this->path.find_last_of('.');
-    if (dotPos != std::string::npos) {
+    if (dotPos != std::string::npos)
+    {
         extension = this->path.substr(dotPos + 1);
     }
-    
+
     // Set content type based on extension
-    if (extension == "html" || extension == "htm") {
+    if (extension == "html" || extension == "htm")
+    {
         contentType = "text/html";
-    } else if (this->is_cgi) {
+    }
+    else if (this->is_cgi)
+    {
         contentType = "text/html";
-    } else if (extension == "css") {
+    }
+    else if (extension == "css")
+    {
         contentType = "text/css";
-    } else if (extension == "js") {
+    }
+    else if (extension == "js")
+    {
         contentType = "application/javascript";
-    } else if (extension == "jpg" || extension == "jpeg") {
+    }
+    else if (extension == "jpg" || extension == "jpeg")
+    {
         contentType = "image/jpeg";
-    } else if (extension == "png") {
+    }
+    else if (extension == "png")
+    {
         contentType = "image/png";
-    } else if (extension == "gif") {
+    }
+    else if (extension == "gif")
+    {
         contentType = "image/gif";
-    } else if (extension == "svg") {
+    }
+    else if (extension == "svg")
+    {
         contentType = "image/svg+xml";
-    } else if (extension == "json") {
+    }
+    else if (extension == "json")
+    {
         contentType = "application/json";
-    } else if (extension == "pdf") {
+    }
+    else if (extension == "pdf")
+    {
         contentType = "application/pdf";
-    } else if (extension == "txt") {
+    }
+    else if (extension == "txt")
+    {
         contentType = "text/plain";
-    } else if (extension == "mp3") {
+    }
+    else if (extension == "mp3")
+    {
         contentType = "audio/mpeg";
-    } else if (extension == "wav") {
+    }
+    else if (extension == "wav")
+    {
         contentType = "audio/wav";
-    } else if (extension == "ogg") {
+    }
+    else if (extension == "ogg")
+    {
         contentType = "audio/ogg";
-    } else if (extension == "mp4") {
+    }
+    else if (extension == "mp4")
+    {
         contentType = "video/mp4";
-    } else if (extension == "webm") {
+    }
+    else if (extension == "webm")
+    {
         contentType = "video/webm";
-    } else if (extension == "avi") {
+    }
+    else if (extension == "avi")
+    {
         contentType = "video/x-msvideo";
-    } else {
+    }
+    else
+    {
         contentType = "application/octet-stream";
     }
     // Build HTTP response header
     std::stringstream ss;
-    ss << "HTTP/1.1 " << status_code << " " << GetStatusMessage(status_code) << "\r\n";
+    ss << "HTTP/1.1 " << this->status_code << " " << GetStatusMessage() << "\r\n";
     ss << "Content-Type: " << contentType << "\r\n";
     ss << "Content-Length: " << (this->is_cgi ? this->response.size() : this->content_length) << "\r\n";
     ss << "Server: MoleServer\r\n";
     ss << "Connection: " << (this->keep_alive ? "keep-alive" : "close") << "\r\n";
     ss << "\r\n"; // Empty line to separate headers from body
-    
+
     return ss.str();
 }
 
@@ -84,7 +120,7 @@ void Connection::GetBodyResponse()
 {
     char buffer[BUFFER_SIZE];
     memset(buffer, 0, BUFFER_SIZE);
-    this->readFormFile->read(buffer , BUFFER_SIZE);
+    this->readFormFile->read(buffer, BUFFER_SIZE);
     this->write_buffer.append(buffer);
     // std::cout << "Buffer: " << buffer << std::endl;
 
@@ -99,9 +135,9 @@ void Connection::GetBodyResponse()
     }
 }
 
-std::string Connection::GetStatusMessage(int status_code)
+std::string Connection::GetStatusMessage()
 {
-    switch (status_code)
+    switch (this->status_code)
     {
     case 200:
         return "OK";
@@ -112,10 +148,65 @@ std::string Connection::GetStatusMessage(int status_code)
     case 404:
         return "Not Found";
     case 500:
-        return "Internal Server Error";
+        return "www/error_pages/500.html";
     default:
         return "Unknown";
     }
+}
+
+void Connection::GetStateFilePath()
+{
+
+    if (this->path.empty())
+    {
+        switch (this->status_code)
+        {
+        case 200:
+            this->path = "www/indexx.html";
+            break;
+        case 201:
+            this->path = "www/suss/postsuss.html";
+            break;
+        case 204:
+            this->path = "www/suss/deletesuss.html";
+            break;
+        case 413:
+            this->path = "www/error_pages/413.html";
+            break;
+        case 400:
+            this->path = "www/error_pages/400.html";
+            break;
+        case 403:
+            this->path = "wwww/error_pages/403.html";
+            break;
+        case 404:
+            this->path = "www/error_pages/404.html";
+            break;
+        case 500:
+            this->path = "www/error_pages/500.html";
+            break;
+        default:
+            this->path = "www/error_pages/default.html";
+            break;
+        }
+    }
+
+    this->readFormFile->open(this->path.c_str(), std::ios::in | std::ios::binary);
+    if (!this->readFormFile->is_open())
+    {
+        std::cerr << "Failed to open file" << std::endl;
+        this->path = "www/error.html";
+        this->readFormFile->open(this->path.c_str(), std::ios::in | std::ios::binary);
+        if (!this->readFormFile->is_open())
+        {
+            std::cerr << "Failed to open error file" << std::endl;
+            return ;
+        }
+    }
+    this->readFormFile->seekg(0, std::ios::end);
+    this->content_length = this->readFormFile->tellg();
+    this->readFormFile->seekg(0, std::ios::beg);
+    return ;
 }
 
 std::string Connection::GetContentType()
